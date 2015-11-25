@@ -1,0 +1,212 @@
+#!/usr/bin/env python3
+# Author: Joshua Chen
+# Date: 2015-11-25
+# Location: Shenzhen
+# Description: a tool for recording work events
+
+import sys, os, time, subprocess, shlex, tempfile
+import ZODB, transaction
+from BTrees.OOBTree import OOBTree
+
+prog_path = os.path.realpath(__file__)
+prog_dir  = os.path.dirname(prog_path)
+lib_dir   = os.path.join(prog_dir, 'lib')
+sys.path.insert(0, lib_dir)
+
+from util.common import getContainer, editContent
+from interact import interact
+from util.recorder import Recorder
+import timeutils
+
+userdata   = os.path.join(prog_dir, 'data')
+db_path   = os.path.join(userdata,  'log.zodb')
+
+def stddate(second=None):
+    if not second: second = time.time()
+    return timeutils.isotime(second)
+
+def stddate(second=None):
+    if not second: second = time.time()
+    return timeutils.stddate(second)
+
+def confirm(prompt='please confirm [y/n]: '):
+    while True:
+        i = interact.readstr(prompt=prompt)
+        if i == 'y':
+            return True;
+        elif i == 'n':
+            return False;
+
+def makeRequest(name, default, datatype, reader, desc):
+    """
+    create a request entry, used for interact.readMany
+    """
+    suffix = (' [%s]: ' % default) if default else ': '
+    prompt = desc + suffix
+    if reader:
+        actual_reader = (lambda prompt, default: reader(prompt, default))
+    else:
+        actual_reader = reader
+    return dict(name=name, prompt=prompt, datatype=datatype, default=default, reader=actual_reader)
+
+
+class Log(Recorder):
+    def makeRequests(self, data=None):
+        """
+        create the request data for interact.readMany
+        """
+        if data:
+            date     = stddate(data[0])
+            location = data[1]
+            person   = data[2]
+        else:
+            date = location = person = None
+
+        requests = []
+        # arguments: name, default, datatype, reader, desc
+        requests.append(makeRequest('date', date, str, None,    'date'))
+        requests.append(makeRequest('location', location, str, None,    'location'))
+        requests.append(makeRequest('person', person, str, None,    'person'))
+        return requests
+
+    def makeLogEntry(self, data=None):
+        requests = self.makeRequests(data=data)
+        i = interact.readMany(requests)
+        ent = list()
+        ent.append(timeutils.strtosecond(i['date']))
+        ent.append(i['location'])
+        ent.append(i['person'])
+        ent.append(editContent().decode())
+        return ent
+
+    def add(self, ent=None):
+        if not ent: ent = self.makeLogEntry()
+        key = str(int(time.time()))
+        Recorder.add(self, key, ent)
+
+    def edit(self):
+        entries = sorted(Recorder.list(self))
+        if not entries:
+            return
+        keys    = [k for k, v in entries]
+        logs    = [self.LogWrapper(v, self) for k, v in entries]
+        index, item = interact.printAndPick(logs, prompt='pick one: ')
+
+        key     = keys[index]
+        oldent  = entries[index][-1]
+        ent     = self.makeLogEntry(oldent)
+        Recorder.save(self, key, ent)
+
+    def format(self, ent):
+        """
+        format the log entry, return a string
+        """
+        date = stddate(ent[0])
+        text = '%s, %s, %s, %s' % (date, ent[1], ent[2], ent[3].replace('\n', ' '))
+        return text
+
+    class LogWrapper:
+        """
+        it is a try, without changing the format of the existing
+        log entries, provide a __str__ method.
+        """
+        def __init__(self, data, parent):
+            self.data = data
+            self.parent = parent
+        def __str__(self):
+            return self.parent.format(self.data)
+
+    def delete(self):
+        entries = sorted(Recorder.list(self))
+        if not entries:
+            return
+        keys    = [k for k, v in entries]
+        logs    = [self.LogWrapper(v, self) for k, v in entries]
+        index, item = interact.printAndPick(logs, prompt='pick one: ')
+        c = interact.readstr('sure? [y/n]: ')
+        if c == 'y':
+            Recorder.delete(self, keys[index])
+
+    def showEntries(self, items):
+        """
+        list the log entries
+        """
+        for k, v in items:
+            text = self.format(v)
+            print(text[:80])
+
+    def list(self):
+        self.opendb()
+        items = sorted(i for i in self.db.items())
+        self.showEntries(items)
+
+    def search(self, pat):
+        """
+        search RE pattern in all fields of the log entries,
+        ignore case, the dot can represent new-line character.
+        """
+        import re
+        def filter(k, v):
+            for content in v[1:]:
+                if re.search(pat, content, re.DOTALL|re.IGNORECASE):
+                    return True
+            return False
+        entries = Recorder.search(self, filter=filter)
+        self.showEntries(entries)
+
+
+def help():
+    print('%s [add|list|search PATTERN|edit|delete|help]'
+                % os.path.basename(sys.argv[0]))
+
+def add():
+    logger = Log(db_path)
+    logger.add()
+
+def _list():
+    logger = Log(db_path)
+    logger.list()
+
+def search(keyword):
+    logger = Log(db_path)
+    logger.search(keyword)
+
+def edit():
+    logger = Log(db_path)
+    logger.edit()
+
+def delete():
+    logger = Log(db_path)
+    logger.delete()
+
+action_map = {
+        'add': add,
+        'list': _list,
+        'search': search,
+        'edit': edit,
+        'delete': delete,
+        'help': help,
+}
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        help()
+        exit(1)
+
+    action = action_map.get(sys.argv[1], help)
+
+    try:
+        if action == search:
+            if len(sys.argv) < 3:
+                help()
+            else:
+                search(sys.argv[2])
+        else:
+            action()
+    except KeyboardInterrupt:
+        print('', file=sys.stderr)
+        exit(1)
+    except (BrokenPipeError, IOError):
+        sys.stderr.close()  # get rid of the error message of 'broken pipe error'.
+        exit(1)
+
