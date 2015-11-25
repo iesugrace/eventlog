@@ -51,6 +51,13 @@ def makeRequest(name, default, datatype, reader, desc):
 
 
 class Log(Recorder):
+    def latest_location(self):
+        """ fetch the recently used location from DB """
+        self.opendb()
+        items = sorted(i for i in self.db.items())
+        if items:
+            return items[-1][1][1]
+
     def makeRequests(self, data=None):
         """
         create the request data for interact.readMany
@@ -60,7 +67,9 @@ class Log(Recorder):
             location = data[1]
             person   = data[2]
         else:
-            date = location = person = None
+            date = stddate()
+            location = self.latest_location()
+            person = ''
 
         requests = []
         # arguments: name, default, datatype, reader, desc
