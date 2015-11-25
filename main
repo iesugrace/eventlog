@@ -142,7 +142,7 @@ class Log(Recorder):
         """
         for k, v in items:
             text = self.format(v)
-            print(text[:80])
+            print(text)
 
     def list(self):
         self.opendb()
