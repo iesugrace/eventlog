@@ -85,7 +85,7 @@ class Log(Recorder):
         ent.append(timeutils.strtosecond(i['date']))
         ent.append(i['location'])
         ent.append(i['person'])
-        ent.append(editContent().decode())
+        ent.append(editContent(data[3].encode()).decode())
         return ent
 
     def add(self, ent=None):

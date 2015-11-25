@@ -15,7 +15,9 @@ def getContainer(root, containerName):
     return cont
 
 def editContent(content=None):
-    """ edit the content with vi editor """
+    """ edit the content with vi editor the input
+    'content' is byte, the returned one is byte also
+    """
     tmpfile = tempfile.NamedTemporaryFile(delete=False)
     if content:
         tmpfile.write(content)
