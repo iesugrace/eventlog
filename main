@@ -29,14 +29,6 @@ def stddate(second=None):
     if not second: second = time.time()
     return timeutils.stddate(second)
 
-def confirm(prompt='please confirm [y/n]: '):
-    while True:
-        i = interact.readstr(prompt=prompt)
-        if i == 'y':
-            return True;
-        elif i == 'n':
-            return False;
-
 def makeRequest(name, default, datatype, reader, desc):
     """
     create a request entry, used for interact.readMany
