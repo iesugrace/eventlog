@@ -1,0 +1,2 @@
+Copy the whole directory somewhere you like, and create a symbolic link in the PATH for the 'main' file.
+All log data is stored in file 'data/log.zodb', directly copy to backup.
