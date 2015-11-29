@@ -48,6 +48,8 @@ class Log(Recorder):
         items = sorted(i for i in self.db.items())
         if items:
             return items[-1][1][1]
+        else:
+            return ''
 
     def makeRequests(self, data=None):
         """
