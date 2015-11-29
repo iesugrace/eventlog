@@ -5,7 +5,6 @@
 # Description: a tool for recording work events
 
 import sys, os, time, subprocess, shlex, tempfile
-import ZODB, transaction
 from BTrees.OOBTree import OOBTree
 
 prog_path = os.path.realpath(__file__)
