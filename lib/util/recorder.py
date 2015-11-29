@@ -13,7 +13,15 @@ class Recorder:
         self.db = None
 
     def opendb(self):
-        if not self.db:
+        """ self.db is a dictionary-like object, the initial db
+        will be empty, thus this statement: not self.db,
+        will always yield a True, which cause the process try
+        to open the DB again even if it did open it before, and
+        cause an exception (locking problem).
+
+        The correct way is compare it directly with None object.
+        """
+        if self.db is None:
             connection = ZODB.connection(self.db_path)
             self.db    = getContainer(connection.root, 'main')
 
